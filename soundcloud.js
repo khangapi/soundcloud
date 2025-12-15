@@ -2,7 +2,14 @@ export default {
   async fetch(request) {
     const url = new URL(request.url);
 
-    // Chấp nhận: /scl-api hoặc /scl-api/*
+    // OPTIONS preflight
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: corsHeaders(request),
+      });
+    }
+
     if (
       url.pathname !== "/scl-api" &&
       !url.pathname.startsWith("/scl-api/")
@@ -10,34 +17,30 @@ export default {
       return new Response("Not Found", { status: 404 });
     }
 
-    // Cắt /scl-api hoặc /scl-api/
     let scPath = url.pathname.replace(/^\/scl-api\/?/, "");
-    scPath = "/" + scPath; // đảm bảo luôn có /
+    scPath = "/" + scPath;
 
-    const targetUrl =
+    const target =
       "https://api-v2.soundcloud.com" + scPath + url.search;
 
     const headers = new Headers(request.headers);
-
-    // Fake header giống web SoundCloud
     headers.set("Host", "api-v2.soundcloud.com");
     headers.set("Origin", "https://soundcloud.com");
     headers.set("Referer", "https://soundcloud.com/");
     headers.set(
       "User-Agent",
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36"
+      "Mozilla/5.0 Chrome/120 Safari/537.36"
     );
 
-    // Xoá header Cloudflare dư thừa
     [
       "cf-connecting-ip",
       "cf-ipcountry",
       "cf-ray",
       "cf-visitor",
-      "x-forwarded-for",
+      "x-forwarded-for"
     ].forEach(h => headers.delete(h));
 
-    const resp = await fetch(targetUrl, {
+    const resp = await fetch(target, {
       method: request.method,
       headers,
       body:
@@ -47,13 +50,28 @@ export default {
     });
 
     const resHeaders = new Headers(resp.headers);
-    resHeaders.set("Access-Control-Allow-Origin", "*");
-    resHeaders.set("Access-Control-Allow-Headers", "*");
-    resHeaders.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+    applyCors(resHeaders, request);
 
     return new Response(resp.body, {
       status: resp.status,
       headers: resHeaders,
     });
-  },
+  }
 };
+
+function corsHeaders(req) {
+  const origin = req.headers.get("Origin") || "*";
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Headers": "*",
+    "Access-Control-Max-Age": "86400",
+  };
+}
+
+function applyCors(headers, req) {
+  const origin = req.headers.get("Origin") || "*";
+  headers.set("Access-Control-Allow-Origin", origin);
+  headers.set("Access-Control-Allow-Credentials", "true");
+}
