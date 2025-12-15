@@ -1,0 +1,5 @@
+{
+  "name": "scl-api",
+  "main": "soundcloud.js",
+  "compatibility_date": "2025-12-15"
+}
